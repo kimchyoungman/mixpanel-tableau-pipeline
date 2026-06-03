@@ -1,0 +1,18 @@
+# Example Mixpanel columns for Tableau exports.
+# One property name per line. Lines starting with # are ignored.
+# Replace these with the event properties your project needs.
+
+event_time
+$device_id
+$current_url
+utm_source
+utm_medium
+utm_campaign
+utm_content
+utm_term
+mp_country_code
+mp_browser
+mp_os
+mp_referrer
+mp_initial_referrer
+distinct_id

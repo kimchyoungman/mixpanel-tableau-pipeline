@@ -1,0 +1,45 @@
+name: Daily Mixpanel to Tableau ETL
+
+on:
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: 'Publish the generated Hyper file to Tableau Cloud'
+        type: boolean
+        default: false
+
+jobs:
+  run-pipeline:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+
+    - name: Run Pipeline
+      env:
+        MIXPANEL_API_SECRET: ${{ secrets.MIXPANEL_API_SECRET }}
+        MIXPANEL_PROJECT_ID: ${{ secrets.MIXPANEL_PROJECT_ID }}
+        MIXPANEL_TIMEZONE: ${{ vars.MIXPANEL_TIMEZONE || 'UTC' }}
+        TABLEAU_SERVER_URL: ${{ secrets.TABLEAU_SERVER_URL }}
+        TABLEAU_SITE_ID: ${{ secrets.TABLEAU_SITE_ID }}
+        TABLEAU_TOKEN_NAME: ${{ secrets.TABLEAU_TOKEN_NAME }}
+        TABLEAU_TOKEN_VALUE: ${{ secrets.TABLEAU_TOKEN_VALUE }}
+        TABLEAU_PROJECT_NAME: ${{ vars.TABLEAU_PROJECT_NAME || 'Default' }}
+        TABLEAU_DATASOURCE_NAME: ${{ vars.TABLEAU_DATASOURCE_NAME || 'mixpanel_hyper' }}
+      run: |
+        args=(--yesterday --verbose)
+        if [ "${{ inputs.publish }}" = "true" ]; then
+          args+=(--publish)
+        fi
+        python main.py "${args[@]}"
