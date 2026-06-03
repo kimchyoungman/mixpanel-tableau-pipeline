@@ -23,6 +23,10 @@ from src.tableau_publisher import TableauPublisher  # Import Publisher
 from src.state_manager import StateManager
 from config.settings import (
     LOG_DIR,
+    OUTPUT_DIR,
+    STATE_PATH,
+    MIXPANEL_API_SECRET,
+    MIXPANEL_PROJECT_ID,
     MIXPANEL_TIMEZONE,
     TABLEAU_PROJECT_NAME,
     TABLEAU_DATASOURCE_NAME
@@ -61,6 +65,60 @@ def setup_logging(verbose: bool = False):
     root_logger.addHandler(file_handler)
 
 
+def _is_missing(value: str | None) -> bool:
+    """Return True for empty or obvious placeholder config values."""
+    if value is None:
+        return True
+    stripped = value.strip()
+    return not stripped or stripped.startswith("your_")
+
+
+def check_config(validate_tableau: bool = False) -> int:
+    """Validate local configuration without calling external APIs."""
+    checks: list[tuple[bool, str]] = []
+
+    checks.append((not _is_missing(MIXPANEL_API_SECRET), "MIXPANEL_API_SECRET is set"))
+    checks.append((not _is_missing(MIXPANEL_PROJECT_ID), "MIXPANEL_PROJECT_ID is set"))
+
+    try:
+        pytz.timezone(MIXPANEL_TIMEZONE)
+        checks.append((True, f"MIXPANEL_TIMEZONE is valid: {MIXPANEL_TIMEZONE}"))
+    except Exception:
+        checks.append((False, f"MIXPANEL_TIMEZONE is invalid: {MIXPANEL_TIMEZONE}"))
+
+    checks.append((OUTPUT_DIR.exists() and OUTPUT_DIR.is_dir(), f"OUTPUT_DIR exists: {OUTPUT_DIR}"))
+    checks.append((LOG_DIR.exists() and LOG_DIR.is_dir(), f"LOG_DIR exists: {LOG_DIR}"))
+
+    if STATE_PATH.startswith("gs://"):
+        checks.append((STATE_PATH.count("/") >= 3, f"STATE_PATH is a GCS path: {STATE_PATH}"))
+    else:
+        state_parent = Path(STATE_PATH).expanduser().parent
+        checks.append((state_parent.exists(), f"STATE_PATH parent exists: {state_parent}"))
+
+    if validate_tableau:
+        import os
+        tableau_vars = [
+            "TABLEAU_SERVER_URL",
+            "TABLEAU_SITE_ID",
+            "TABLEAU_TOKEN_NAME",
+            "TABLEAU_TOKEN_VALUE",
+        ]
+        for name in tableau_vars:
+            checks.append((not _is_missing(os.getenv(name)), f"{name} is set"))
+
+    for passed, message in checks:
+        marker = "OK" if passed else "MISSING"
+        print(f"[{marker}] {message}")
+
+    failed = [message for passed, message in checks if not passed]
+    if failed:
+        print("\nConfiguration is incomplete. Update .env or your environment variables.")
+        return 1
+
+    print("\nConfiguration looks ready.")
+    return 0
+
+
 def parse_args():
     """Parse command line arguments."""
     parser = argparse.ArgumentParser(
@@ -86,6 +144,12 @@ def parse_args():
         "--yesterday",
         action="store_true",
         help="Use yesterday's date for start and end date (for daily automation)"
+    )
+
+    date_group.add_argument(
+        "--check-config",
+        action="store_true",
+        help="Validate local configuration without exporting data"
     )
 
     parser.add_argument(
@@ -179,6 +243,9 @@ def main():
     args = parse_args()
     setup_logging(args.verbose)
     logger = logging.getLogger(__name__)
+
+    if args.check_config:
+        sys.exit(check_config(validate_tableau=args.publish))
 
     # Handle column file
     columns = args.columns or []

@@ -24,7 +24,7 @@ track incremental progress locally or in Google Cloud Storage.
 ## Installation
 
 ```bash
-git clone https://github.com/Haryy-Park00/mixpanel-tableau-pipeline.git
+git clone https://github.com/kimchyoungman/mixpanel-tableau-pipeline.git
 cd mixpanel-tableau-pipeline
 python -m venv .venv
 source .venv/bin/activate
@@ -74,6 +74,18 @@ STATE_PATH=gs://your-bucket/path/state.json
 
 When `STATE_PATH` uses `gs://`, the runtime must have Google Cloud credentials
 with permission to read and write that object.
+
+Validate configuration before exporting data:
+
+```bash
+python main.py --check-config
+```
+
+Validate Tableau publishing settings too:
+
+```bash
+python main.py --check-config --publish
+```
 
 ## Usage
 
@@ -138,6 +150,7 @@ python main.py --from-date 2024-01-01 --to-date 2024-01-31 --publish --tableau-o
 | `--from-date` | Start date in `YYYY-MM-DD` format |
 | `--to-date` | End date in `YYYY-MM-DD` format |
 | `--yesterday` | Export yesterday in `MIXPANEL_TIMEZONE` |
+| `--check-config` | Validate configuration without exporting data |
 | `--auto-incremental` | Start from the saved state and run through yesterday |
 | `--output`, `-o` | Output `.hyper` path |
 | `--events`, `-e` | Event names to export |
@@ -182,6 +195,8 @@ intended for that public repository.
 project ID supplied by Cloud Build and does not include project-specific
 credentials. Configure deployment secrets separately in Cloud Run, Secret
 Manager, or your chosen runtime.
+
+For deployment details, see `DEPLOYMENT.md`.
 
 ## Tableau Prep
 
