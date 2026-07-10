@@ -1,48 +1,61 @@
-# Mixpanel to Tableau Hyper Pipeline
+# Mixpanel → Tableau Hyper Pipeline 🚀
 
 [![CI](https://github.com/kimchyoungman/mixpanel-tableau-pipeline/actions/workflows/ci.yml/badge.svg)](https://github.com/kimchyoungman/mixpanel-tableau-pipeline/actions/workflows/ci.yml)
-[![Python 3.11+](https://img.shields.io/badge/Python-3.11%2B-blue.svg)](https://www.python.org/downloads/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Python 3.11+](https://img.shields.io/badge/Python-3.11%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/downloads/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-F7DF1E?logo=opensourceinitiative&logoColor=black)](LICENSE)
 
-Export raw Mixpanel events, flatten their properties, and write them to a
-Tableau Hyper extract. Run the pipeline locally, publish directly to Tableau
-Cloud, and keep incremental progress in a local file or Google Cloud Storage.
+> **Turn raw Mixpanel events into Tableau-ready data—automatically.** ✨
 
-```text
-Mixpanel Data Export API
-          │
-          ▼
-  flatten · filter · deduplicate
-          │
-          ▼
-    Tableau .hyper extract ──────► Tableau Cloud (optional)
-          │
-          └──────────────────────► local file or GCS state (optional)
+Export Mixpanel product analytics data, flatten event properties, and generate a
+Tableau Hyper extract (`.hyper`) in one repeatable pipeline. Run it locally,
+schedule it with GitHub Actions or Cloud Run, and optionally publish directly
+to Tableau Cloud. 🎉
+
+**Built for** analytics engineers, data teams, and Tableau users who want a
+reliable Mixpanel-to-Tableau ETL workflow without maintaining custom export
+scripts.
+
+| Start here | What you get | Run it where you work |
+| --- | --- | --- |
+| [Quick start](#quick-start) ⚡ | Flattened, Tableau-ready events | Local · Docker · GitHub Actions · Cloud Run |
+
+## The pipeline at a glance
+
+```mermaid
+flowchart LR
+    A["📊 Mixpanel<br/>Data Export API"] --> B["🧹 Extract and<br/>flatten events"]
+    B --> C{"🔎 Filter and<br/>deduplicate"}
+    C --> D["📦 Tableau Hyper<br/>.hyper extract"]
+    D --> E["☁️ Tableau Cloud<br/>optional publish"]
+    C -. "successful progress" .-> F["🧭 State<br/>local JSON or GCS"]
+
+    classDef source fill:#7856FF,color:#fff,stroke:#5D3FD3
+    classDef process fill:#00A6A6,color:#fff,stroke:#007A7A
+    classDef output fill:#E97627,color:#fff,stroke:#B95313
+    classDef state fill:#546E7A,color:#fff,stroke:#37474F
+    class A source
+    class B,C process
+    class D,E output
+    class F state
 ```
 
-> [!IMPORTANT]
-> Mixpanel exports can contain user identifiers and other personal data. Never
-> commit credentials, logs, state files, event payloads, or generated Hyper
-> extracts. See [Security](#security) before sharing output files.
+### What happens on every run
 
-## What it does
+1. **Fetch** events from the Mixpanel Data Export API for the requested dates.
+2. **Shape** them into Tableau-friendly columns by flattening top-level event properties.
+3. **Control quality** with event filters, property filters, `$insert_id` deduplication, and chunked processing.
+4. **Deliver** a `.hyper` extract, optionally publish it to Tableau Cloud, and save progress for the next run. 🚀
 
-- Streams events from the Mixpanel Data Export API.
-- Flattens the event and its top-level properties into Tableau-compatible columns.
-- Deduplicates events using `$insert_id` when available.
-- Filters by event name, property value, or selected columns.
-- Processes large date ranges in day- or month-based chunks.
-- Produces a valid empty Hyper extract when a query returns no events.
-- Publishes extracts to Tableau Cloud using a personal access token.
-- Tracks incremental progress locally or at a `gs://` path.
-- Runs manually or on a schedule through GitHub Actions or Cloud Run Jobs.
+## Why this pipeline?
 
-## Requirements
+- **Tableau-native output** — creates a `.hyper` extract, not an intermediate CSV you still need to manage.
+- **Incremental by design** — resumes after the last successful date from local JSON or Google Cloud Storage state.
+- **Production-minded controls** — chunk large ranges, validate configuration before requests, and stop on state failures.
+- **Flexible delivery** — use the CLI locally, containerize it with Docker, or automate it in GitHub Actions and Cloud Run.
 
-- Python 3.11 or newer
-- A Mixpanel project ID and API secret
-- A Tableau Cloud personal access token only when publishing
-- Google Cloud credentials only when using GCS-backed state
+> [!TIP]
+> Start with a one-day export to confirm the event schema, then move to
+> `--auto-incremental` for recurring refreshes. Small first run, fewer surprises. ✨
 
 ## Quick start
 
@@ -72,22 +85,46 @@ MIXPANEL_PROJECT_ID=your_mixpanel_project_id
 MIXPANEL_TIMEZONE=UTC
 ```
 
-Validate the configuration without calling an external API:
+Validate configuration without calling an external API, then export a date range:
 
 ```bash
 mixpanel-tableau --check-config
-```
 
-Export a date range:
-
-```bash
 mixpanel-tableau \
   --from-date 2026-01-01 \
   --to-date 2026-01-31
 ```
 
-The generated extract is written to `./output` unless `--output` or
-`OUTPUT_DIR` specifies another location.
+🎊 Your extract is written to `./output` unless you set `--output` or `OUTPUT_DIR`.
+
+## Your first export: user flow
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Analyst as "👤 Analyst"
+    participant CLI as "⚙️ mixpanel-tableau"
+    participant State as "🧭 State file / GCS"
+    participant Mixpanel as "📊 Mixpanel API"
+    participant Hyper as "📦 Hyper writer"
+    participant Tableau as "☁️ Tableau Cloud"
+
+    Analyst->>CLI: Choose dates or --auto-incremental
+    opt Incremental run
+        CLI->>State: Read last successful date
+        State-->>CLI: Resume date
+    end
+    CLI->>Mixpanel: Request event export
+    Mixpanel-->>CLI: Stream event data
+    CLI->>Hyper: Flatten, filter, deduplicate, write
+    Hyper-->>CLI: events.hyper
+    opt --publish
+        CLI->>Tableau: Publish datasource
+        Tableau-->>CLI: Published
+    end
+    CLI->>State: Save successful progress
+    CLI-->>Analyst: ✅ Tableau-ready extract
+```
 
 ## Installation options
 
@@ -102,98 +139,34 @@ The generated extract is written to `./output` unless `--output` or
 The committed `uv.lock` provides a reproducible contributor and CI dependency
 set. `requirements.txt` remains available for conventional deployment systems.
 
-## Configuration
+## Common workflows
 
-Configuration is loaded from environment variables and an optional `.env` file
-in the directory where the command is run.
-
-### Mixpanel
-
-| Variable | Required | Default | Description |
-| --- | --- | --- | --- |
-| `MIXPANEL_API_SECRET` | Yes | — | Mixpanel Data Export API secret |
-| `MIXPANEL_PROJECT_ID` | Yes | — | Mixpanel project ID |
-| `MIXPANEL_TIMEZONE` | No | `UTC` | Timezone used for timestamps and `--yesterday` |
-
-### Local output and state
-
-| Variable | Required | Default | Description |
-| --- | --- | --- | --- |
-| `OUTPUT_DIR` | No | `./output` | Directory for generated Hyper files |
-| `LOG_DIR` | No | `./logs` | Directory for pipeline logs |
-| `STATE_PATH` | No | `./state.json` | Local state file or `gs://bucket/path/state.json` |
-
-Relative paths are resolved from the directory where the CLI is run.
-
-### Tableau Cloud
-
-These values are required only with `--publish`.
-
-| Variable | Required for publishing | Default | Description |
-| --- | --- | --- | --- |
-| `TABLEAU_SERVER_URL` | Yes | — | Tableau Cloud pod URL |
-| `TABLEAU_SITE_ID` | Yes | — | Tableau site content URL / site ID |
-| `TABLEAU_TOKEN_NAME` | Yes | — | Personal access token name |
-| `TABLEAU_TOKEN_VALUE` | Yes | — | Personal access token secret |
-| `TABLEAU_PROJECT_NAME` | No | `Default` | Target Tableau project |
-| `TABLEAU_DATASOURCE_NAME` | No | `mixpanel_hyper` | Published datasource name |
-
-Validate Mixpanel and Tableau settings together:
-
-```bash
-mixpanel-tableau --check-config --publish
-```
-
-## Usage
-
-### Select a date range
-
-```bash
-mixpanel-tableau \
-  --from-date 2026-01-01 \
-  --to-date 2026-01-31 \
-  --output ./output/january-events.hyper
-```
-
-Export yesterday in `MIXPANEL_TIMEZONE`:
+### Export yesterday
 
 ```bash
 mixpanel-tableau --yesterday
 ```
 
-### Select events and properties
+`--yesterday` uses `MIXPANEL_TIMEZONE`, so set it to the timezone your team
+uses for reporting.
 
-Export only selected event names:
-
-```bash
-mixpanel-tableau \
-  --from-date 2026-01-01 \
-  --to-date 2026-01-31 \
-  --events "Page View" "Button Click"
-```
-
-Include selected event properties:
+### Export only selected events and properties
 
 ```bash
 mixpanel-tableau \
   --from-date 2026-01-01 \
   --to-date 2026-01-31 \
+  --events "Page View" "Button Click" \
   --columns mp_os mp_browser plan
-```
-
-Or load one property name per line from a file:
-
-```bash
-mixpanel-tableau \
-  --from-date 2026-01-01 \
-  --to-date 2026-01-31 \
-  --column-file columns.txt
 ```
 
 Mixpanel property names are normalized to lowercase. A leading `$` becomes
 `mp_`, while spaces, hyphens, and periods become underscores. For example,
-`$browser` becomes `mp_browser`. Nested dictionaries and lists are stored as JSON
-text rather than expanded into additional columns.
+`$browser` becomes `mp_browser`. Nested dictionaries and lists are stored as
+JSON text rather than expanded into additional columns.
+
+To keep a reusable property list, pass `--column-file columns.txt` with one
+property name per line.
 
 ### Filter events
 
@@ -248,8 +221,50 @@ mixpanel-tableau \
   --tableau-overwrite
 ```
 
-Publishing uses append mode by default. Use `--tableau-overwrite` to replace the
-existing datasource.
+Publishing uses append mode by default. Add `--tableau-overwrite` to replace
+the existing datasource.
+
+## Configuration
+
+Configuration is loaded from environment variables and an optional `.env` file
+in the directory where the command is run.
+
+### Mixpanel
+
+| Variable | Required | Default | Description |
+| --- | --- | --- | --- |
+| `MIXPANEL_API_SECRET` | Yes | — | Mixpanel Data Export API secret |
+| `MIXPANEL_PROJECT_ID` | Yes | — | Mixpanel project ID |
+| `MIXPANEL_TIMEZONE` | No | `UTC` | Timezone used for timestamps and `--yesterday` |
+
+### Local output and state
+
+| Variable | Required | Default | Description |
+| --- | --- | --- | --- |
+| `OUTPUT_DIR` | No | `./output` | Directory for generated Hyper files |
+| `LOG_DIR` | No | `./logs` | Directory for pipeline logs |
+| `STATE_PATH` | No | `./state.json` | Local state file or `gs://bucket/path/state.json` |
+
+Relative paths are resolved from the directory where the CLI is run.
+
+### Tableau Cloud
+
+These values are required only with `--publish`.
+
+| Variable | Required for publishing | Default | Description |
+| --- | --- | --- | --- |
+| `TABLEAU_SERVER_URL` | Yes | — | Tableau Cloud pod URL |
+| `TABLEAU_SITE_ID` | Yes | — | Tableau site content URL / site ID |
+| `TABLEAU_TOKEN_NAME` | Yes | — | Personal access token name |
+| `TABLEAU_TOKEN_VALUE` | Yes | — | Personal access token secret |
+| `TABLEAU_PROJECT_NAME` | No | `Default` | Target Tableau project |
+| `TABLEAU_DATASOURCE_NAME` | No | `mixpanel_hyper` | Published datasource name |
+
+Validate Mixpanel and Tableau settings together:
+
+```bash
+mixpanel-tableau --check-config --publish
+```
 
 ## CLI reference
 
@@ -274,7 +289,7 @@ existing datasource.
 | `--tableau-overwrite` | Replace instead of append during publishing |
 | `--verbose`, `-v` | Enable verbose console logging |
 
-Run `mixpanel-tableau --help` for the command's authoritative option list.
+Run `mixpanel-tableau --help` for the authoritative option list.
 
 ## Automation
 
@@ -323,6 +338,31 @@ Manager rather than in the image or build configuration.
 See [DEPLOYMENT.md](DEPLOYMENT.md) for GitHub Actions, Artifact Registry, runtime
 configuration, and local scheduler guidance.
 
+## Frequently asked questions
+
+### How do I export Mixpanel data to Tableau?
+
+Configure your Mixpanel credentials, run `mixpanel-tableau` for a date range,
+and open the generated `.hyper` extract in Tableau. This repository automates
+the extraction, transformation, and Hyper file generation steps.
+
+### Can this pipeline publish a Mixpanel extract to Tableau Cloud?
+
+Yes. Install the Tableau extra, configure a Tableau Cloud personal access token,
+then include `--publish`. The pipeline appends by default and can replace a
+datasource with `--tableau-overwrite`.
+
+### Can I schedule incremental Mixpanel-to-Tableau syncs?
+
+Yes. Use `--auto-incremental` with a local state file or a GCS-backed
+`STATE_PATH`, then schedule the command with GitHub Actions, Cloud Run, or your
+own scheduler.
+
+### Does it handle empty exports and duplicate events?
+
+Yes. It creates a valid empty Hyper extract for empty result sets and uses
+Mixpanel's `$insert_id` for deduplication when that identifier is available.
+
 ## Project structure
 
 ```text
@@ -362,34 +402,12 @@ uv sync --all-extras --frozen --no-editable
 CI runs linting, tests, and CLI smoke checks on Python 3.11 and 3.12. See
 [CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request.
 
-## Troubleshooting
-
-### The export completed but contains zero rows
-
-This is valid. A date range or filter with no matching events produces an empty
-Hyper extract containing the standard `Extract.events` table.
-
-### Mixpanel returns an authentication or authorization error
-
-Confirm that `MIXPANEL_API_SECRET` belongs to `MIXPANEL_PROJECT_ID` and that the
-credential can access the Data Export API. Run `--check-config` to catch missing
-values before starting a request.
-
-### Timestamps or `--yesterday` use the wrong day
-
-Set `MIXPANEL_TIMEZONE` to a valid timezone such as `UTC`, `Asia/Seoul`, or
-`America/New_York`.
-
-### GCS state cannot be loaded or saved
-
-Confirm Application Default Credentials are available and that the runtime
-identity has object read/write permissions for the configured bucket path.
-
 ## Security
 
-Do not publish generated extracts without reviewing their contents. Mixpanel
-events may contain identifiers, URLs, campaign parameters, and other personal or
-commercially sensitive data.
+> [!IMPORTANT]
+> Mixpanel exports can contain user identifiers, URLs, campaign parameters, and
+> other personal or commercially sensitive data. Never commit credentials,
+> logs, state files, event payloads, or generated Hyper extracts. 🔒
 
 Report vulnerabilities privately through the repository's **Security** tab.
 See [SECURITY.md](SECURITY.md) for the full policy.
@@ -397,10 +415,10 @@ See [SECURITY.md](SECURITY.md) for the full policy.
 ## Contributing
 
 Issues and pull requests are welcome. Keep examples account-agnostic, add tests
-for behavior changes, and never use production credentials or real event data in
-fixtures. See [CONTRIBUTING.md](CONTRIBUTING.md) and
+for behavior changes, and never use production credentials or real event data
+in fixtures. See [CONTRIBUTING.md](CONTRIBUTING.md) and
 [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md).
 
 ## License
 
-Released under the [MIT License](LICENSE).
+Released under the [MIT License](LICENSE). 🎊
