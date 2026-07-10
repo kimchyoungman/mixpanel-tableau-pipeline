@@ -6,8 +6,9 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
-# Load environment variables
-load_dotenv()
+# Load the project-local environment file explicitly. This keeps source and
+# installed CLI behavior consistent regardless of where the package lives.
+load_dotenv(Path.cwd() / ".env")
 
 # Runtime paths. Defaults are relative to the directory where the CLI is run so
 # an installed wheel never attempts to write inside site-packages.
