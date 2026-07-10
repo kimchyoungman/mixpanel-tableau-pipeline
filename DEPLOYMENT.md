@@ -20,14 +20,30 @@ Optional repository variables:
 - `MIXPANEL_TIMEZONE`
 - `TABLEAU_PROJECT_NAME`
 - `TABLEAU_DATASOURCE_NAME`
+- `PUBLISH_TO_TABLEAU`
+
+When publishing is disabled, the workflow uploads `output/events.hyper` as an
+artifact for seven days. Set `PUBLISH_TO_TABLEAU=true` for scheduled runs that
+should publish directly to Tableau Cloud.
 
 To schedule the workflow, add a `schedule` trigger only after confirming that
 the repository secrets are intended for automated exports.
 
 ## Google Cloud
 
-`cloudbuild.yaml` only builds and pushes a container image for the active Cloud
-Build project. Runtime configuration still belongs in your deployment
+`cloudbuild.yaml` builds and pushes to Artifact Registry. Before the first
+build, create the configured repository (default: `mixpanel-tableau`) in the
+configured region (default: `asia-northeast3`):
+
+```bash
+gcloud artifacts repositories create mixpanel-tableau \
+  --repository-format=docker \
+  --location=asia-northeast3
+gcloud builds submit --config cloudbuild.yaml .
+```
+
+Override `_REGION`, `_REPOSITORY`, or `_IMAGE` with Cloud Build substitutions
+when deploying elsewhere. Runtime configuration still belongs in the deployment
 environment.
 
 Recommended runtime settings:

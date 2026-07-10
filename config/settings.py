@@ -3,21 +3,18 @@ Configuration settings for Mixpanel to Tableau pipeline.
 """
 import os
 from pathlib import Path
+
 from dotenv import load_dotenv
 
 # Load environment variables
 load_dotenv()
 
-# Project paths
-PROJECT_ROOT = Path(__file__).parent.parent
-BASE_DIR = PROJECT_ROOT
-OUTPUT_DIR = Path(os.getenv("OUTPUT_DIR", PROJECT_ROOT / "output"))
-LOG_DIR = Path(os.getenv("LOG_DIR", PROJECT_ROOT / "logs"))
-STATE_PATH = os.getenv("STATE_PATH", str(PROJECT_ROOT / "state.json"))
-
-# Create directories if they don't exist
-OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-LOG_DIR.mkdir(parents=True, exist_ok=True)
+# Runtime paths. Defaults are relative to the directory where the CLI is run so
+# an installed wheel never attempts to write inside site-packages.
+BASE_DIR = Path.cwd()
+OUTPUT_DIR = Path(os.getenv("OUTPUT_DIR", BASE_DIR / "output")).expanduser()
+LOG_DIR = Path(os.getenv("LOG_DIR", BASE_DIR / "logs")).expanduser()
+STATE_PATH = os.getenv("STATE_PATH", str(BASE_DIR / "state.json"))
 
 # Mixpanel settings
 MIXPANEL_API_SECRET = os.getenv("MIXPANEL_API_SECRET")

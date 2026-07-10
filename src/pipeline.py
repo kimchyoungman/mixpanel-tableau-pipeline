@@ -3,14 +3,14 @@ Main pipeline orchestration for Mixpanel to Tableau Hyper ETL.
 """
 import json
 import logging
-from pathlib import Path
+from collections.abc import Callable
 from datetime import datetime
-from typing import Optional
+from pathlib import Path
 
-from src.mixpanel_client import MixpanelClient
+from config.settings import OUTPUT_DIR
 from src.data_transformer import DataTransformer
 from src.hyper_writer import HyperWriter
-from config.settings import OUTPUT_DIR
+from src.mixpanel_client import MixpanelClient
 
 logger = logging.getLogger(__name__)
 
@@ -20,8 +20,8 @@ class Pipeline:
 
     def __init__(
         self,
-        api_secret: Optional[str] = None,
-        project_id: Optional[str] = None
+        api_secret: str | None = None,
+        project_id: str | None = None
     ):
         """
         Initialize pipeline.
@@ -37,10 +37,10 @@ class Pipeline:
         self,
         from_date: str,
         to_date: str,
-        output_path: Optional[str] = None,
-        event_names: Optional[list] = None,
-        filters: Optional[list[str]] = None,
-        target_columns: Optional[list[str]] = None,
+        output_path: str | None = None,
+        event_names: list | None = None,
+        filters: list[str] | None = None,
+        target_columns: list[str] | None = None,
         schema_name: str = "Extract",
         table_name: str = "events"
     ) -> str:
@@ -77,6 +77,12 @@ class Pipeline:
 
         if not raw_events:
             logger.warning("No events found for the specified date range")
+            self._write_empty_extract(
+                output_path,
+                target_columns=target_columns,
+                schema_name=schema_name,
+                table_name=table_name,
+            )
             return str(output_path)
 
         # Deduplication based on $insert_id
@@ -103,6 +109,12 @@ class Pipeline:
             flattened_events = self.transformer.filter_events(flattened_events, filters)
             if not flattened_events:
                 logger.warning("No events match the filter criteria")
+                self._write_empty_extract(
+                    output_path,
+                    target_columns=target_columns,
+                    schema_name=schema_name,
+                    table_name=table_name,
+                )
                 return str(output_path)
 
         # Infer schema from sample (considering target_columns)
@@ -125,17 +137,30 @@ class Pipeline:
         logger.info(f"Pipeline complete! Output: {output_path}")
         return str(output_path)
 
+    def _write_empty_extract(
+        self,
+        output_path: Path,
+        target_columns: list[str] | None = None,
+        schema_name: str = "Extract",
+        table_name: str = "events",
+    ) -> None:
+        """Create a valid empty Hyper extract instead of returning a missing file."""
+        schema = self.transformer.infer_schema([], target_columns=target_columns)
+        with HyperWriter(str(output_path)) as writer:
+            writer.create_table(schema, schema_name, table_name)
+        logger.info(f"Created empty Hyper extract: {output_path}")
+
     def run_chunked(
         self,
         from_date: str,
         to_date: str,
-        output_path: Optional[str] = None,
-        event_names: Optional[list] = None,
-        filters: Optional[list[str]] = None,
-        target_columns: Optional[list[str]] = None,
-        chunk_days: Optional[int] = None,
-        chunk_months: Optional[int] = None,
-        on_chunk_end: Optional[callable] = None
+        output_path: str | None = None,
+        event_names: list | None = None,
+        filters: list[str] | None = None,
+        target_columns: list[str] | None = None,
+        chunk_days: int | None = None,
+        chunk_months: int | None = None,
+        on_chunk_end: Callable[[str], None] | None = None
     ) -> str:
         """
         Run pipeline with chunked date processing for large date ranges.
@@ -241,6 +266,11 @@ class Pipeline:
                 # Clear chunk-specific memory
                 chunk_ids.clear()
                 del chunk_ids
+
+            if not table_created:
+                schema = self.transformer.infer_schema([], target_columns=target_columns)
+                writer.create_table(schema)
+                logger.info("Created an empty Extract.events table because no events were returned")
 
         logger.info(f"Pipeline complete! Total Raw={total_raw}, Total Unique={total_unique}")
         logger.info(f"Output: {output_path}")

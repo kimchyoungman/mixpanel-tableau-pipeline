@@ -3,9 +3,9 @@ Data transformer for converting Mixpanel events to Hyper-compatible format.
 """
 import json
 import logging
-from datetime import datetime
-from typing import Any, Optional
 from dataclasses import dataclass
+from datetime import datetime
+from typing import Any
 
 import pytz
 
@@ -95,7 +95,7 @@ class DataTransformer:
     def filter_events(
         self,
         events: list[dict],
-        filters: Optional[list[str]] = None
+        filters: list[str] | None = None
     ) -> list[dict]:
         """
         Filter events based on property conditions.
@@ -113,7 +113,7 @@ class DataTransformer:
         logger.info(f"Filtered {len(events)} -> {len(filtered)} events")
         return filtered
 
-    def convert_timestamp(self, unix_ts: Optional[int]) -> Optional[datetime]:
+    def convert_timestamp(self, unix_ts: int | None) -> datetime | None:
         """
         Convert Unix timestamp to datetime.
 
@@ -136,7 +136,7 @@ class DataTransformer:
     def infer_schema(
         self,
         events: list,
-        target_columns: Optional[list[str]] = None
+        target_columns: list[str] | None = None
     ) -> list[ColumnDef]:
         """
         Infer schema from a sample of events.

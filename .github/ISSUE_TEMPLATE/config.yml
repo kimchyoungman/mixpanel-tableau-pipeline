@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security vulnerability
+    url: https://github.com/kimchyoungman/mixpanel-tableau-pipeline/security
+    about: Use a private security report; never disclose vulnerability details publicly.

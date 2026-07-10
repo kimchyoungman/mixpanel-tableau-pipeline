@@ -17,25 +17,27 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 
 from datetime import datetime, timedelta
+
 import pytz
-from src.pipeline import Pipeline
-from src.tableau_publisher import TableauPublisher  # Import Publisher
-from src.state_manager import StateManager
+
 from config.settings import (
     LOG_DIR,
-    OUTPUT_DIR,
-    STATE_PATH,
     MIXPANEL_API_SECRET,
     MIXPANEL_PROJECT_ID,
     MIXPANEL_TIMEZONE,
+    OUTPUT_DIR,
+    STATE_PATH,
+    TABLEAU_DATASOURCE_NAME,
     TABLEAU_PROJECT_NAME,
-    TABLEAU_DATASOURCE_NAME
 )
+from src.pipeline import Pipeline
+from src.state_manager import StateManager
 
 
 def setup_logging(verbose: bool = False):
     """Configure logging for the application."""
     log_level = logging.DEBUG if verbose else logging.INFO
+    LOG_DIR.mkdir(parents=True, exist_ok=True)
 
     # Console handler
     console_handler = logging.StreamHandler()
@@ -86,14 +88,22 @@ def check_config(validate_tableau: bool = False) -> int:
     except Exception:
         checks.append((False, f"MIXPANEL_TIMEZONE is invalid: {MIXPANEL_TIMEZONE}"))
 
-    checks.append((OUTPUT_DIR.exists() and OUTPUT_DIR.is_dir(), f"OUTPUT_DIR exists: {OUTPUT_DIR}"))
-    checks.append((LOG_DIR.exists() and LOG_DIR.is_dir(), f"LOG_DIR exists: {LOG_DIR}"))
+    for name, path in (("OUTPUT_DIR", OUTPUT_DIR), ("LOG_DIR", LOG_DIR)):
+        try:
+            path.mkdir(parents=True, exist_ok=True)
+            checks.append((path.is_dir(), f"{name} is ready: {path}"))
+        except OSError as e:
+            checks.append((False, f"{name} is not writable: {path} ({e})"))
 
     if STATE_PATH.startswith("gs://"):
         checks.append((STATE_PATH.count("/") >= 3, f"STATE_PATH is a GCS path: {STATE_PATH}"))
     else:
         state_parent = Path(STATE_PATH).expanduser().parent
-        checks.append((state_parent.exists(), f"STATE_PATH parent exists: {state_parent}"))
+        try:
+            state_parent.mkdir(parents=True, exist_ok=True)
+            checks.append((state_parent.is_dir(), f"STATE_PATH parent is ready: {state_parent}"))
+        except OSError as e:
+            checks.append((False, f"STATE_PATH parent is not writable: {state_parent} ({e})"))
 
     if validate_tableau:
         import os
@@ -241,18 +251,19 @@ def parse_args():
 def main():
     """Main entry point."""
     args = parse_args()
-    setup_logging(args.verbose)
-    logger = logging.getLogger(__name__)
 
     if args.check_config:
         sys.exit(check_config(validate_tableau=args.publish))
+
+    setup_logging(args.verbose)
+    logger = logging.getLogger(__name__)
 
     # Handle column file
     columns = args.columns or []
     if args.column_file:
         col_path = Path(args.column_file)
         if col_path.exists():
-            with open(col_path, 'r') as f:
+            with open(col_path) as f:
                 # Read lines, strip whitespace, and filter empty lines/comments
                 file_cols = [line.strip() for line in f if line.strip() and not line.strip().startswith('#')]
                 columns.extend(file_cols)
@@ -334,6 +345,10 @@ def main():
 
         # Publish to Tableau if requested
         if args.publish:
+            # Keep Tableau publishing optional for users who only generate
+            # local Hyper extracts.
+            from src.tableau_publisher import TableauPublisher
+
             print("\n🚀 Publishing to Tableau Cloud...")
             publisher = TableauPublisher()
             publisher.publish(
@@ -349,7 +364,7 @@ def main():
                 state_manager.update_state(to_date)
 
         else:
-            print(f"   Open this file in Tableau Prep to use the data.")
+            print("   Open this file in Tableau Prep to use the data.")
 
             # If not publishing but auto-incremental, still update state?
             # Usually better to update state only if the full process (including publish) succeeds if publish is intended.

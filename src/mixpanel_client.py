@@ -3,12 +3,12 @@ Mixpanel API client for exporting raw event data.
 """
 import json
 import logging
-from typing import Generator, Optional
+from collections.abc import Generator
 from datetime import datetime
 
 import requests
 
-from config.settings import MIXPANEL_API_SECRET, MIXPANEL_PROJECT_ID, MIXPANEL_EXPORT_URL
+from config.settings import MIXPANEL_API_SECRET, MIXPANEL_EXPORT_URL, MIXPANEL_PROJECT_ID
 
 logger = logging.getLogger(__name__)
 
@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 class MixpanelClient:
     """Client for Mixpanel Raw Data Export API."""
 
-    def __init__(self, api_secret: Optional[str] = None, project_id: Optional[str] = None):
+    def __init__(self, api_secret: str | None = None, project_id: str | None = None):
         """
         Initialize Mixpanel client.
 
@@ -36,7 +36,7 @@ class MixpanelClient:
         self,
         from_date: str,
         to_date: str,
-        event_names: Optional[list] = None
+        event_names: list | None = None
     ) -> Generator[dict, None, None]:
         """
         Export events from Mixpanel for a given date range as a generator.
@@ -55,7 +55,7 @@ class MixpanelClient:
         self,
         from_date: str,
         to_date: str,
-        event_names: Optional[list] = None
+        event_names: list | None = None
     ) -> Generator[dict, None, None]:
         """
         Stream export events from Mixpanel API with retry logic.
@@ -120,9 +120,9 @@ class MixpanelClient:
         self,
         from_date: str,
         to_date: str,
-        event_names: Optional[list] = None,
-        chunk_days: Optional[int] = None,
-        chunk_months: Optional[int] = None
+        event_names: list | None = None,
+        chunk_days: int | None = None,
+        chunk_months: int | None = None
     ) -> Generator[list, None, None]:
         """
         Export events in day-based or month-based chunks to handle large date ranges.

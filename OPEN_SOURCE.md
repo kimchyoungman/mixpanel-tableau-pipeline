@@ -39,7 +39,14 @@ cd /tmp/mixpanel-tableau-public-check
 rg -n "PRIVATE KEY|TOKEN_VALUE|<org-specific-name>|<legacy-user-property>"
 python -m py_compile main.py src/*.py config/*.py
 python main.py --help
+uv sync --all-extras --frozen --no-editable
+uv run --frozen --no-sync ruff check .
+uv run --frozen --no-sync pytest
 ```
+
+Never use `git push --all` or `git push --mirror` from a working copy that also
+contains private branches or backup refs. Maintain public development in a fresh
+clone of the public repository.
 
 ## Alternative: Rewrite The Private History
 

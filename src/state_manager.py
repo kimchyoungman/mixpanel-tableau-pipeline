@@ -5,7 +5,6 @@ import json
 import logging
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Optional
 
 try:
     from google.cloud import storage
@@ -46,7 +45,7 @@ class StateManager:
         if not path.exists():
             return {}
         try:
-            with open(path, 'r') as f:
+            with open(path) as f:
                 return json.load(f)
         except json.JSONDecodeError:
             logger.warning(f"Corrupt state file at {self.state_path}, starting fresh.")
@@ -67,7 +66,7 @@ class StateManager:
             return json.loads(content)
         except Exception as e:
             logger.error(f"Error loading state from GCS: {e}")
-            return {}
+            raise RuntimeError(f"Unable to load state from {self.state_path}") from e
 
     def _save_state(self):
         """Save state to file or GCS."""
@@ -75,8 +74,11 @@ class StateManager:
             self._save_to_gcs()
         else:
             path = Path(self.state_path)
-            with open(path, 'w') as f:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            temporary_path = path.with_suffix(f"{path.suffix}.tmp")
+            with open(temporary_path, 'w') as f:
                 json.dump(self.state, f, indent=2)
+            temporary_path.replace(path)
 
     def _save_to_gcs(self):
         """Save state to Google Cloud Storage."""
@@ -93,6 +95,7 @@ class StateManager:
             logger.info(f"State saved to GCS: {self.state_path}")
         except Exception as e:
             logger.error(f"Error saving state to GCS: {e}")
+            raise RuntimeError(f"Unable to save state to {self.state_path}") from e
 
     def _parse_gcs_path(self, path: str) -> tuple[str, str]:
         """Parse gs://bucket/path into (bucket, path)."""
@@ -101,11 +104,11 @@ class StateManager:
             raise ValueError(f"Invalid GCS path: {path}")
         return parts[0], parts[1]
 
-    def get_last_processed_date(self) -> Optional[str]:
+    def get_last_processed_date(self) -> str | None:
         """Get the last processed date (YYYY-MM-DD) for the current key."""
         return self.state.get(self.key, {}).get("last_processed_date")
 
-    def get_next_start_date(self) -> Optional[str]:
+    def get_next_start_date(self) -> str | None:
         """
         Calculate the next start date based on the last processed date.
         Returns: next_start_date (str) or None if no history.

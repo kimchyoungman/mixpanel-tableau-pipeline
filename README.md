@@ -28,7 +28,18 @@ git clone https://github.com/kimchyoungman/mixpanel-tableau-pipeline.git
 cd mixpanel-tableau-pipeline
 python -m venv .venv
 source .venv/bin/activate
-pip install -r requirements.txt
+python -m pip install --upgrade pip
+pip install ".[tableau,gcs]"
+```
+
+The `tableau` extra enables Tableau Cloud publishing and the `gcs` extra enables
+GCS-backed incremental state. For local Hyper generation only, use
+`pip install .`.
+
+For a reproducible contributor environment using the committed lock file:
+
+```bash
+uv sync --all-extras --frozen --no-editable
 ```
 
 ## Configuration
@@ -54,6 +65,9 @@ OUTPUT_DIR=./output
 LOG_DIR=./logs
 STATE_PATH=./state.json
 ```
+
+Relative paths are resolved from the directory where the CLI is run. This is
+also where the default `output`, `logs`, and `state.json` paths are created.
 
 Optional Tableau Cloud publishing:
 
@@ -94,6 +108,9 @@ Generate a Hyper file for a date range:
 ```bash
 python main.py --from-date 2024-01-01 --to-date 2024-01-31
 ```
+
+If the export or filters return no events, the command still creates a valid
+empty Hyper extract with the standard `Extract.events` schema.
 
 Set a specific output file:
 
@@ -184,17 +201,23 @@ Optional repository variables:
 - `MIXPANEL_TIMEZONE`
 - `TABLEAU_PROJECT_NAME`
 - `TABLEAU_DATASOURCE_NAME`
+- `PUBLISH_TO_TABLEAU` (`true` to publish scheduled runs)
+
+When publishing is disabled, the workflow uploads the generated Hyper file as a
+GitHub Actions artifact with a seven-day retention period. This prevents a
+successful run from discarding its output.
 
 To enable scheduled automation, add a `schedule` trigger to
 `.github/workflows/daily_etl.yml` after confirming the repository secrets are
-intended for that public repository.
+intended for that public repository. Set `PUBLISH_TO_TABLEAU=true` if scheduled
+runs should publish; otherwise each run preserves the extract as an artifact.
 
 ## Google Cloud Build
 
-`cloudbuild.yaml` is a generic container build example. It uses the active GCP
-project ID supplied by Cloud Build and does not include project-specific
-credentials. Configure deployment secrets separately in Cloud Run, Secret
-Manager, or your chosen runtime.
+`cloudbuild.yaml` builds to Artifact Registry using the active GCP project ID
+and configurable region, repository, and image substitutions. Create the
+Artifact Registry repository before the first build. Configure runtime secrets
+separately in Cloud Run, Secret Manager, or your chosen runtime.
 
 For deployment details, see `DEPLOYMENT.md`.
 
@@ -209,6 +232,9 @@ For deployment details, see `DEPLOYMENT.md`.
 
 ```text
 mixpanel-tableau-pipeline/
+├── .github/workflows/
+│   ├── ci.yml
+│   └── daily_etl.yml
 ├── config/settings.py
 ├── src/
 │   ├── mixpanel_client.py
@@ -218,9 +244,33 @@ mixpanel-tableau-pipeline/
 │   ├── tableau_publisher.py
 │   └── pipeline.py
 ├── main.py
+├── pyproject.toml
+├── tests/
 ├── columns.txt
 ├── cloudbuild.yaml
-└── .github/workflows/daily_etl.yml
+└── Dockerfile
+```
+
+## Development
+
+Install development tools and run the local checks:
+
+```bash
+pip install ".[tableau,gcs,dev]"
+ruff check .
+pytest --cov=src --cov=config --cov-report=term-missing
+```
+
+Pull requests run the same checks on Python 3.11 and 3.12.
+
+## Docker
+
+Build and validate the container without copying local credentials or generated
+data into the image:
+
+```bash
+docker build -t mixpanel-tableau-pipeline .
+docker run --rm --env-file .env mixpanel-tableau-pipeline --check-config
 ```
 
 ## Security

@@ -2,20 +2,19 @@
 Tableau Hyper file writer using Hyper API.
 """
 import logging
-from pathlib import Path
 from datetime import datetime
-from typing import Optional
+from pathlib import Path
 
 from tableauhyperapi import (
-    HyperProcess,
-    Telemetry,
     Connection,
     CreateMode,
+    HyperProcess,
+    Inserter,
+    Nullability,
+    SqlType,
     TableDefinition,
     TableName,
-    SqlType,
-    Nullability,
-    Inserter
+    Telemetry,
 )
 
 from config.settings import DEFAULT_SCHEMA_NAME, DEFAULT_TABLE_NAME
@@ -46,8 +45,8 @@ class HyperWriter:
         self.output_path = Path(output_path)
         self.output_path.parent.mkdir(parents=True, exist_ok=True)
 
-        self._hyper_process: Optional[HyperProcess] = None
-        self._connection: Optional[Connection] = None
+        self._hyper_process: HyperProcess | None = None
+        self._connection: Connection | None = None
 
     def __enter__(self):
         """Context manager entry."""

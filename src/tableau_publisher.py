@@ -4,7 +4,6 @@ Handles authentication and publishing of Hyper files to Tableau Cloud.
 """
 import logging
 import os
-from typing import Optional
 
 import tableauserverclient as TSC
 
@@ -16,10 +15,10 @@ class TableauPublisher:
 
     def __init__(
         self,
-        server_url: Optional[str] = None,
-        site_id: Optional[str] = None,
-        token_name: Optional[str] = None,
-        token_value: Optional[str] = None
+        server_url: str | None = None,
+        site_id: str | None = None,
+        token_name: str | None = None,
+        token_value: str | None = None
     ):
         """
         Initialize the publisher.
